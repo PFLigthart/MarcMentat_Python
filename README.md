@@ -1,12 +1,23 @@
 # MarcMentat_Python
-Code to run finite element analysis in MarcMentat using python scripts. This allows for an optimisation loop to be setup with a finite element analysis within the loop.
+Code to run finite element analysis in [MarcMentat](https://www.mscsoftware.com/product/marc) using python scripts. This allows for an optimisation loop to be setup with a finite element analysis within the loop.
 
 ## Contents
-1. Instructions for how to setup a conda virtual environment in windows and to add the required libraries is provided.
-2. Instructions for how to setup a python script that can interface with MarcMentat is provided.
-3. Instructions for how to run the python script from the conda prompt *(terminal)* is is also provided.
+[Virtual Environment](https://github.com/PFLigthart/MarcMentat_Python#how-to-setup-the-conda-virtual-environment-and-add-the-required-libraries)
 
-My personal files used for my masters thesis are included and can be used as an example. A short discription of what my code is designed for is also provided.
+* Instructions for how to setup a conda virtual environment in windows and to add the required libraries is provided.
+
+[Note on Marc and Mentat](https://github.com/PFLigthart/Marc-Mentat)
+
+[Create Python Script](https://github.com/PFLigthart/Setup-python-script-to-interface-with-Marc-and-Mentat)
+* Instructions for how to setup a python script that can interface with MarcMentat is provided.
+
+[Run Python Script from the terminal](https://github.com/PFLigthart/Run-the-python-script-from-the-termianl)
+
+* Instructions for how to run the python script from the conda prompt *(terminal is also provided.
+
+[Example](https://github.com/PFLigthart/Example-from-thesis)
+
+* My personal files used for my masters thesis are included and can be used as an example. A short discription of what my code is designed for is also provided.
 
 ## How to setup the conda virtual environment and add the required libraries.
 The libraries required cannot be installed using either Pip or Conda. These libraries are part of the propriatary software and hence need to be copied into the virtual environment.
@@ -42,3 +53,18 @@ Here is a step by step procedure.
                 * C:\Users\<your username>\miniconda3\envs\Apex_mentat_pip\DLLs
         * Place the py_mentat and py_post files into this directory. 
 * The virtual environment should now be able to use these libraries.
+
+## Marc Mentat
+This guide assumes the user has some experience in MSC Marc. Here is a link to the official [Marc and Mentat Documentation](https://simcompanion.hexagon.com/customers/s/article/Marc-Documentation-Release-2021)
+
+## Setup python script to interface with Marc and Mentat
+
+TODO
+
+## Run the python script from the termianl
+
+TODO
+
+## Example from thesis
+
+TODO
