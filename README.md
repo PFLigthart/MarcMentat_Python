@@ -45,7 +45,7 @@ Here is a step by step procedure.
             2. Activate the environment.
                 * conda activate Apex_Mentat_Pip]
             3. type: python
-	    4. type: import sys.
+	        4. type: import sys.
             5. type: sys.path
                 * Different paths will be displayed. Look for the path that shows were the DLLs are stored.
                     * e.g.
