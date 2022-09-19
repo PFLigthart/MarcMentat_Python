@@ -49,7 +49,7 @@ Here is a step by step procedure.
             5. type: sys.path
                 * Different paths will be displayed. Look for the path that shows were the DLLs are stored.
                     * e.g.
-                C:\\Users\\jubil\\miniconda3\\envs\\Apex_mentat_pip\\DLLs
+                C:\\Users\\<your username>\\miniconda3\\envs\\Apex_mentat_pip\\DLLs
             6. If present, remove the double '\\' to be only a single '\\', as shown below:
                 * C:\Users\<your username>\miniconda3\envs\Apex_mentat_pip\DLLs
         * Place the py_mentat and py_post files into this directory. 
