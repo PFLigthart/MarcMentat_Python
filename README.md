@@ -2,11 +2,13 @@
 Code to run finite element analysis in [MarcMentat](https://www.mscsoftware.com/product/marc) using python scripts. This allows for an optimisation loop to be setup with a finite element analysis within the loop.
 
 ## Contents
+[How to install Marc](https://github.com/PFLigthart/MarcMentat_Python/tree/Updates_1#how-to-install-marc-for-students-at-stellenbosch-university)
+
 [Virtual Environment](https://github.com/PFLigthart/MarcMentat_Python#how-to-setup-the-conda-virtual-environment-and-add-the-required-libraries)
 
 * Instructions for how to setup a conda virtual environment in windows and to add the required libraries is provided.
 
-[Note on Marc and Mentat](https://github.com/PFLigthart/Marc-Mentat)
+[Note on Marc and Mentat](https://github.com/PFLigthart/MarcMentat_Python/tree/Updates_1#marc-mentat)
 
 [Create Python Script](https://github.com/PFLigthart/Setup-python-script-to-interface-with-Marc-and-Mentat)
 * Instructions for how to setup a python script that can interface with MarcMentat is provided.
