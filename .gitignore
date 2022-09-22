@@ -130,10 +130,10 @@ dmypy.json
 
 
 # Ignore all mentat files
-.mud
-.t16
-.sts
-.dat
-.x_t
-.log
-.out
+*.mud
+*.t16
+*.sts
+*.dat
+*.x_t
+*.log
+*.out
