@@ -1,9 +1,10 @@
 """Script to create a singly unit of the soft actuator that will be optimised"""
 
 import os
-from scipy import optimize
-from py_mentat import py_connect, py_disconnect, py_send, py_get_int, py_get_float
 import time
+
+from py_mentat import py_connect, py_disconnect, py_get_float, py_get_int, py_send
+from scipy import optimize
 
 
 def was_code_successfull(file_path, word, max_time=20):
@@ -543,7 +544,7 @@ if __name__ == "__main__":
     global file_name
     file_name = "testing_one_one"
     py_connect("", 40007)
-    py_send('*change_directory "my_marc_2"')
+    py_send('*change_directory "C:\github\MarcMentat_Python\Thesis_Code"')
 
     # Optimiser code
 
