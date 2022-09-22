@@ -1,11 +1,12 @@
 """Script to create a singly unit of the soft actuator that will be optimised"""
 
 import os
+from scipy import optimize
 from py_mentat import py_connect, py_disconnect, py_send, py_get_int, py_get_float
 import time
 
 
-def was_code_successfull(file_path, word, max_time=15):
+def was_code_successfull(file_path, word, max_time=20):
     """Search status file to see if code ran successfully"""
     complete = False
     time_elapsed = 0
@@ -30,7 +31,7 @@ def was_code_successfull(file_path, word, max_time=15):
         return False
 
 
-def does_file_exist(file_name, file_extension, max_time):
+def does_file_exist(file_name, file_extension, max_time=15):
     """
     Check a file exits. Runs untill found or max time reached.
 
@@ -44,11 +45,11 @@ def does_file_exist(file_name, file_extension, max_time):
     elapsed_time = 0
     start_time = time.time()
 
-    print(f"Looking for - {file_name}.{file_extension}")
+    # print(f"Looking for - {file_name}.{file_extension}")
 
     while (file_exists == False) and (elapsed_time < max_time):
         if os.path.isfile(f"{file_name}_job1.{file_extension}"):
-            print(f"Found: {file_name}.{file_extension}")
+            # print(f"Found: {file_name}.{file_extension}")
             file_exists = True
         else:
             # pause for a short ammount of time
@@ -86,11 +87,7 @@ def setup_geometry_and_mesh(N5XY, h, w, N6XY, N7XY, N8XY):
 
 
 def apply_boundary_conditions():
-    """
-    Apply the fixed boundary conditions and the required loads.
-
-    Args:
-        pressure_val: The pressure value to be applied to the edges."""
+    """Apply the fixed boundary conditions and the required loads."""
 
     # fixed boundary condition.
 
@@ -170,8 +167,13 @@ def run_the_model():
     py_send("*submit_job 1")
 
 
-def delete_all():
-    """Function that deletes a model by deleting everything in the model"""
+def delete_all(fname):
+    """
+    Deletes a model by deleting everything in the model and results files.
+
+    Args:
+        fname: Model file name
+    """
     # close the results
     py_send("*post_close")
 
@@ -205,6 +207,36 @@ def delete_all():
 
     # delete the solid
     py_send("*remove_solids 1 #")
+
+    # delete the results files
+    delete_file(file_name, ".log")
+    delete_file(file_name, ".dat")
+    delete_file(file_name, ".out")
+    delete_file(file_name, ".sts")
+    delete_file(file_name, ".t16")
+    delete_file(file_name, "_b1.x_t")
+
+
+def delete_file(file_name, file_extension):
+    """
+    Delete a file
+
+    Args:
+        file_name: The file name.
+        file_extension: The file extension. This must inclulde the '.'
+
+    Returns:
+        None
+    """
+
+    file_path = file_name + "_job1" + file_extension
+    if os.path.isfile(file_path):
+        os.remove(file_path)
+        # print("File has been deleted")
+    else:
+        print("File does not exist")
+
+    return
 
 
 def job_status_checks(file_name):
@@ -242,7 +274,7 @@ def get_x_y_node_displacements():
     py_send("*post_skip_to_last")
 
     # return 1
-    py_send("*fill_view")
+    # py_send("*fill_view")
     py_send("*post_contour_lines")
     py_send("*post_value Displacement X")
     # Node 2
@@ -321,7 +353,7 @@ def model_setup(file_name, N5XY, h, w, N6XY, N7XY, N8XY):
     apply_boundary_conditions()
     add_material_properties()
     create_geometric_properites(thickness=2)
-    apply_loads(12)
+    apply_loads(20)
     setup_loadcase()
     create_job()
     return
@@ -341,15 +373,13 @@ def mentat_main(N5XY, h, w, N6XY, N7XY, N8XY):
         N3Y: Node 3 y displacements.
     """
 
-    file_name = "testing_one_one"
     model_setup(file_name, N5XY, h, w, N6XY, N7XY, N8XY)
     run_the_model()
     success = job_status_checks(file_name)
     # Wait untill a .t16 results file has been made.
-    proceed = does_file_exist(file_name, "t16", 5)  # if time runs out -> false
+    proceed = does_file_exist(file_name, "t16", 15)  # if time runs out -> false
     if success and proceed:
         node_displacements = get_x_y_node_displacements()
-        print(f"These are the node locations {node_displacements}")
         return node_displacements
     else:
         print("Problem encountered in code")
@@ -386,7 +416,7 @@ def convert_displacements_to_coordinates(n2xy_d, n3xy_d):
     return (n2xy, n3xy)
 
 
-def fitness_function(t1, t2, t3, t4):
+def fitness_function(t1234_ls, return_node_locations=False):
     """
     The function that will be optimised
 
@@ -400,37 +430,142 @@ def fitness_function(t1, t2, t3, t4):
         fitness: Sum of the euclidian distances from target nodes.
     """
 
+    t1 = t1234_ls[0]
+    t2 = t1234_ls[1]
+    t3 = t1234_ls[2]
+    t4 = t1234_ls[3]
+
     N5XY, h, w = get_cutaway_dimensions(t1, t2, t3, t4)
     N6XY, N7XY, N8XY = get_nodes_6_7_8(t1, t2, t3, t4)
     node_disps = mentat_main(N5XY, h, w, N6XY, N7XY, N8XY)
-    n2xy, n3xy = convert_displacements_to_coordinates(node_disps[0], node_disps[0])
+    n2xy, n3xy = convert_displacements_to_coordinates(node_disps[0], node_disps[1])
+    optimum = (n2xy, n3xy)
 
-    n2_target = (35, 5)
-    n3_target = (25, 30)
+    n2_target = (40, -10)
+    n3_target = (40, 40)
 
     euclid_2 = ((n2_target[0] - n2xy[0]) ** 2 + (n2_target[1] - n2xy[1]) ** 2) ** 0.5
     euclid_3 = ((n3_target[0] - n3xy[0]) ** 2 + (n3_target[1] - n3xy[1]) ** 2) ** 0.5
 
     fitness = euclid_2 + euclid_3
 
-    return fitness
+    delete_all(file_name)
+
+    print(f"Fitness: {fitness}")
+
+    if return_node_locations == True:
+        return optimum
+    else:
+        return fitness
+
+
+def constraint_1(t1234_ls):
+    """
+    Esure there is at least a 1mm gap vertically
+
+    Args:
+        t1234_ls: All wall thicknesses passed as a list
+
+    Returns:
+        constraint_eval: The evaluated constraint.
+    """
+
+    constraint_eval = 29 - t1234_ls[0] - t1234_ls[2]
+
+    return constraint_eval
+
+
+def constraint_2(t1234_ls):
+    """
+    Esure there is at least a 1mm gap vertically
+
+    Args:
+        t1234_ls: All wall thicknesses passed as a list
+
+    Returns:
+        constraint_eval: The evaluated constraint.
+    """
+
+    constraint_eval = 29 - t1234_ls[1] - t1234_ls[3]
+
+    return constraint_eval
+
+
+def constraint_3(t1234_ls):
+    """
+    Ensure a minimum wall thickness of 2mm
+
+    Args:
+        t1234_ls: All wall thicknesses passed as a list
+    """
+
+    return t1234_ls[0] - 2
+
+
+def constraint_4(t1234_ls):
+    """
+    Ensure a minimum wall thickness of 2mm
+
+    Args:
+        t1234_ls: All wall thicknesses passed as a list
+    """
+
+    return t1234_ls[1] - 2
+
+
+def constraint_5(t1234_ls):
+    """
+    Ensure a minimum wall thickness of 2mm
+
+    Args:
+        t1234_ls: All wall thicknesses passed as a list
+    """
+
+    return t1234_ls[2] - 2
+
+
+def constraint_6(t1234_ls):
+    """
+    Ensure a minimum wall thickness of 2mm
+
+    Args:
+        t1234_ls: All wall thicknesses passed as a list
+    """
+
+    return t1234_ls[3] - 2
 
 
 if __name__ == "__main__":
 
+    # create a global optimum variable for easy retrival
+
+    # some general setup
+    global file_name
+    file_name = "testing_one_one"
     py_connect("", 40007)
     py_send('*change_directory "my_marc_2"')
 
-    nodes = fitness_function(2, 2, 5, 2)
-    print(f"The final fitness are:\n\t\t{nodes}")
-    delete_all()
-    print("Is everything deleted?")
-    print("5 second countdown starting now.")
+    # Optimiser code
 
-    # There are two options here.
-    # 1. After the delete, just restart everything as it was run earlier.
-    # 2. Try delete all the results and status files.
+    # Constraints
+    con1 = {"type": "ineq", "fun": constraint_1}
+    con2 = {"type": "ineq", "fun": constraint_2}
+    con3 = {"type": "ineq", "fun": constraint_3}
+    con4 = {"type": "ineq", "fun": constraint_4}
+    con5 = {"type": "ineq", "fun": constraint_5}
+    con6 = {"type": "ineq", "fun": constraint_6}
+    cons = [con1, con2, con3, con4, con5, con6]
 
-    time.sleep(5)
+    # Initial guess
+    x0 = [2.0, 7.53576963, 2.0, 4.37180637]
+
+    # Run the optimiser
+    solution = optimize.minimize(
+        fitness_function, x0, method="COBYLA", constraints=cons
+    )
+    print(f"The best solution = {solution}")
+
+    answer = fitness_function(solution.x, True)
+    print(f"Final Nodal Parameters")
 
     py_disconnect()
