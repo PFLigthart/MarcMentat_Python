@@ -19,6 +19,23 @@ Code to run finite element analysis in [MarcMentat](https://www.mscsoftware.com/
 
 * My personal files used for my masters thesis are included and can be used as an example. A short discription of what my code is designed for is also provided.
 
+## How to install marc (For students at Stellenbosch University)
+1. Obtain the software from the ftp server. You have to be connected to the network to access the server. If you are not on campus you will need to use the vpn. (Ask your supervisor or check your research group wiki for the address and passcode.)
+2. Copy the files onto your machine. At the time of writing 2021.4 was the latest version the university had access to.
+    * marc_2021.4_windows64
+    * marc_2021.4_windows_doc
+3. First install 'marc_2021.4_windows'. This is the program.
+    * Double clicking on the file to start the installation.
+    * When prompted, enter 'Stellenbosch University' as the company name.
+    * When prompted, Do a complete install. Marc and Marc Mentat.
+    * When prompted, enter '1700@license2.stb.sun.ac.za' for the License.
+4. Finally install 'marc_2021.4_windows_doc'. This is the documentation.
+    * Double click the file to start the installation.
+    * When prompted, enter 'Stellenbosch University' as the company name.
+
+Marc should now be installed and can be used when connect to the University Network.
+
+
 ## How to setup the conda virtual environment and add the required libraries.
 The libraries required cannot be installed using either Pip or Conda. These libraries are part of the propriatary software and hence need to be copied into the virtual environment.
 I use [miniconda](https://docs.conda.io/en/latest/miniconda.html) to setup my virtual environements.It is "a small, bootstrap version of [Anaconda](https://www.anaconda.com/)".
