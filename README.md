@@ -55,8 +55,8 @@ Here is a step by step procedure.
 	* pip install scipy
 5. Move py_mentat and py_post files into virtual environmnet.
 	* Files are located at: C:\Program Files\MSC.Software\Marc\2021.4.0\mentat2021.4\shlib\win64
-		py_mentat.py
-		py_post.py
+		py_mentat.pyd
+		py_post.pyd
     * Move files into the conda virtual environment.
 	    * (Thanks to SB Chung for the following steps.)
 	    * Depending on what environment you are using, the following steps may vary. However, if a conda environment is being used the following can be done
