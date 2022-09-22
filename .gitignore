@@ -127,3 +127,13 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+# Ignore all mentat files
+.mud
+.t16
+.sts
+.dat
+.x_t
+.log
+.out
