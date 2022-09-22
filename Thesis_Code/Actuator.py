@@ -566,6 +566,6 @@ if __name__ == "__main__":
     print(f"The best solution = {solution}")
 
     answer = fitness_function(solution.x, True)
-    print(f"Final Nodal Parameters")
+    print(f"Final Nodal Parameters:\n\n\t\t{answer}")
 
     py_disconnect()
