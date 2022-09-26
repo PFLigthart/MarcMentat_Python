@@ -137,3 +137,10 @@ dmypy.json
 *.x_t
 *.log
 *.out
+
+# Ignore files generated from code2flow
+*.png
+*.gv
+
+# ignore profiling
+*.prof
