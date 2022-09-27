@@ -794,9 +794,9 @@ def determine_fitness_score(node_points):
 
     # Target points
     t_1 = (0, 0)
-    t_2 = (30, 5)
-    t_3 = (30, 35)
-    t_4 = (0, 30)
+    t_2 = (4.08612135e01, 6.56753218e-01)
+    t_3 = (3.81125194e01, 3.03306614e01)
+    t_4 = (0, 2.98009421e01)
 
     euclid_1 = ((t_1[0] - node_points[0]) ** 2 + (t_1[1] - node_points[4]) ** 2) ** 0.5
     euclid_2 = ((t_2[0] - node_points[1]) ** 2 + (t_2[1] - node_points[5]) ** 2) ** 0.5
@@ -920,7 +920,7 @@ if __name__ == "__main__":
 
     # Initial guess. These are the node locations in oder as:
     # [N9X, N9Y, N10X, N10Y, N11X, N11Y, N12X, N12Y]
-    x0 = [14, 7, 16, 7, 28, 26, 2, 26]
+    x0 = [5, 14, 25, 14, 5, 16, 5, 16]
 
     if build_only == True:
         fitness_function(x0, True)
