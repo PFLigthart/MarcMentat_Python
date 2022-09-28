@@ -143,8 +143,7 @@ def extract_nodes_from_dat():
         end = main.find(marker2)
 
         main = main[start:end]
-        print("Did we get here")
-        time.sleep(1)
+        # time.sleep(1) # Testing if this needs to be here.
         f2.write(main)
 
 
@@ -223,7 +222,7 @@ def was_code_successfull(file_path, word, max_time=20):
             content = file.read()
             # check if string present in a file
             if word in content:
-                print("EXIT CODE - 3004")
+                print("\t\t\tEXIT CODE - 3004")
                 complete = True
             else:
                 # pause for a short while
@@ -250,11 +249,8 @@ def does_file_exist(file_name, file_extension, max_time=15):
     elapsed_time = 0
     start_time = time.time()
 
-    # print(f"Looking for - {file_name}.{file_extension}")
-
     while (file_exists == False) and (elapsed_time < max_time):
-        if os.path.isfile(f"{file_name}_job1.{file_extension}"):
-            # print(f"Found: {file_name}.{file_extension}")
+        if os.path.isfile(f"{file_name}.{file_extension}"):
             file_exists = True
         else:
             # pause for a short ammount of time
@@ -497,7 +493,6 @@ def delete_file(file_name, file_extension):
     file_path = file_name + file_extension
     if os.path.isfile(file_path):
         os.remove(file_path)
-        # print("File has been deleted")
     else:
         print("File does not exist")
 
@@ -507,7 +502,7 @@ def delete_file(file_name, file_extension):
 def job_status_checks(file_name):
     """See if the job is completed and if successfully"""
     # does a status file exist
-    does_file_exist(file_name, "sts", 15)
+    does_file_exist(file_name + "_job1", "sts", 15)
     path = os.path.abspath(os.getcwd())
     file_path = path + f"\\{file_name}_job1.sts"
 
@@ -576,8 +571,6 @@ def get_x_y_node_displacements(node_ids):
     n18xy = (N18X, N18Y)
     n19xy = (N19X, N19Y)
     n20xy = (N20X, N20Y)
-
-    # print(f"Displacements? {(n17xy, n18xy, n19xy, n20xy)}")
 
     return (n17xy, n18xy, n19xy, n20xy)
 
@@ -659,7 +652,11 @@ def mentat_main(N5XY, N6XY, N7XY, N8XY):
     model_setup(file_name, N5XY, N6XY, N7XY, N8XY)
     # Export at dat file to read node ids from
     py_send("*write_marc 'node_location.dat' yes")
-    time.sleep(1)
+    node_file = does_file_exist("node_location", "dat")
+    if node_file == True:
+        did_this_work = is_file_being_modified(file_name_and_exten="node_location.dat")
+    else:
+        print("Error in node file somewhere")
     extract_nodes_from_dat()
     node_df = get_node_coords_dataframe()
     node_targets = ((30, 0, 0), (60, 0, 0), (60, 30, 0), (30, 30, 0))
@@ -668,18 +665,51 @@ def mentat_main(N5XY, N6XY, N7XY, N8XY):
         (the_node_id, distance) = find_closest_node(i, node_df)
         node_ids.append(the_node_id)
         if distance > 0.001:
-            print("Big distance.")
+            print(f"\t\t\tDistance:\t{distance}")
 
     run_the_model()
     success = job_status_checks(file_name)
     # Wait untill a .t16 results file has been made.
-    proceed = does_file_exist(file_name, "t16", 15)  # if time runs out -> false
+    proceed = does_file_exist(
+        file_name + "_job1", "t16", 15
+    )  # if time runs out -> false
     if success and proceed:
         node_displacements = get_x_y_node_displacements(node_ids)
         return node_displacements
     else:
         print("Problem encountered in code")
         return
+
+
+def is_file_being_modified(file_name_and_exten, max_time=15):
+    """
+    Runs infinitely until a file is no longer being modified
+
+    Args:
+        file_name_and_extension: The full file name and extension.
+        max_time: The maximum time the function can run before termination.
+
+    Returns:
+        Success: True if file is no longer being modified.
+            False if time runs out.
+    """
+    start_time = time.time()
+    mod_time = time.ctime(os.path.getmtime(file_name_and_exten))
+    last_mod_time = mod_time
+
+    run_time = 0
+    success = False
+
+    while (success == False) and (run_time < max_time):
+        print(f"\t\t\tMod time:\t{mod_time}")
+        time.sleep(0.1)
+        mod_time = time.ctime(os.path.getmtime(file_name_and_exten))
+        if mod_time == last_mod_time:
+            success = True
+        else:
+            last_mod_time = mod_time
+
+    return success
 
 
 def convert_displacements_to_coordinates(node_disps):
@@ -920,14 +950,14 @@ if __name__ == "__main__":
 
     # Initial guess. These are the node locations in oder as:
     # [N9X, N9Y, N10X, N10Y, N11X, N11Y, N12X, N12Y]
-    x0 = [5, 14, 25, 14, 5, 16, 5, 16]
+    x0 = [5, 8, 25, 8, 25, 25, 5, 25]
 
     if build_only == True:
         fitness_function(x0, True)
     else:
         # Run the optimiser
         solution = optimize.minimize(
-            fitness_function, x0, method="Nelder-Mead", bounds=bnds
+            fitness_function, x0, method="Powell", bounds=bnds
         )  # method="COBYLA",
         print(f"The best solution = {solution}")
 
