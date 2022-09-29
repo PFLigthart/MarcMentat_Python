@@ -3,8 +3,211 @@
 import os
 import time
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from py_mentat import py_connect, py_disconnect, py_get_float, py_get_int, py_send
 from scipy import optimize
+
+
+def plot_c(cube, col):
+    x_s = [j for j in cube[0:4]]
+    x_s.append(cube[0])
+    y_s = [j for j in cube[4:]]
+    y_s.append(cube[4])
+    plt.plot(x_s, y_s, col, linestyle="--", alpha=0.8)
+
+
+def get_angl_midpts(cube, side):
+    """
+    Calculate the absolute angle and midpoint of the provided side.
+
+    Args:
+        cube: The cube node locations [x1, .., x4, y1, .., y2]
+        side: The side of interest, 41 or 34.
+
+    Raises:
+        ValueError: Incorrect side provided - must be 41 or 32.
+            This is if the int passsed to the side argurment is not
+            one of the two expected values.
+
+    Returns:
+        angl: The absolute angle in radians.
+        midpts: The midpoint location.
+    """
+
+    if side == 41:
+        pt_xa = cube[0]
+        pt_ya = cube[4]
+        pt_xb = cube[3]
+        pt_yb = cube[7]
+    elif side == 32:
+        pt_xa = cube[1]
+        pt_ya = cube[5]
+        pt_xb = cube[2]
+        pt_yb = cube[6]
+    else:
+        raise ValueError("Incorrect side provided - must be 41 or 32")
+
+    del_x = pt_xb - pt_xa
+    del_y = pt_yb - pt_ya
+
+    if del_x == 0:
+        if del_y == 0:
+            m_grad = 0
+        else:
+            m_grad = 1e16  # large number to avoid nan.
+    else:
+        m_grad = (del_y) / (del_x)
+
+    alpha = np.arctan(m_grad)  # angle between line and positive x direction
+
+    # All iniqualities are "equal to" no sure if some should be without it.
+    if del_x >= 0 and del_y >= 0:
+        angl = (np.pi / 2) - abs(alpha)
+    elif del_x >= 0 and del_y <= 0:
+        angl = (np.pi / 2) + abs(alpha)
+    elif del_x <= 0 and del_y >= 0:
+        angl = ((3 * np.pi) / 2) + abs(alpha)
+    elif del_x <= 0 and del_y <= 0:
+        angl = ((3 * np.pi) / 2) - abs(alpha)
+
+    # Rotations are applied about the midpoint of nodes 1 and 4.
+    # Therefore the required translation is calculated about this point.
+    midpts = np.array([[(pt_xa + pt_xb) / 2], [(pt_ya + pt_yb) / 2]])
+
+    return (angl, midpts)
+
+
+def rotate_then_translate(points, theta, translation):
+    """
+    Move a quad-4 element in the coordinate plane.
+    Rotations are counter-clockwise.
+    Args:
+        points: The node points of the element. [x1, .., x4, y1, .., y4]
+        theta: The angle by which to rotate the element.
+        translation: The translation matrix. [[x], [y]]
+    Returns:
+        new_points: The element points after rotation.
+    """
+    rotation_matrix = np.array(
+        [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
+    )
+
+    mid_point = np.array(
+        [
+            [(points[3] + points[0]) / 2],
+            [(points[7] + points[4]) / 2],
+        ]
+    )
+
+    # first rotate about the mid point the side with verticies 1 and 4.
+    new_points = np.zeros(points.shape[0])
+    for i in range(int((points.shape[0]) / 2)):
+        pt = [points[i], points[i + 4]]  # x, y values
+        # shifts rotation point to be about the mid point
+        rot_point = np.array([[pt[0] - mid_point[0, 0]], [pt[1] - mid_point[1, 0]]])
+        rotated_point = rotation_matrix @ rot_point
+        rot_translate_point = np.array(
+            [
+                [rotated_point[0, 0] + mid_point[0, 0]],
+                [rotated_point[1, 0] + mid_point[1, 0]],
+            ]
+        )
+        final_point = np.add(rot_translate_point, translation)
+        new_points[i] = final_point[0, 0]
+        new_points[i + 4] = final_point[1, 0]
+
+    return new_points
+
+
+def extract_nodes_from_dat():
+    """
+    Extract the nodal locations from a dat file into a text file
+
+    Args:
+        None
+
+    Returns:
+        None: It only changes the file 'coordinates.txt
+    """
+
+    datFile = "node_location.dat"
+    coordinatesFile = "coordinates.txt"
+    marker1 = "coordinates"
+    marker2 = "define              node                set"
+
+    with open(datFile, "r") as f1, open(coordinatesFile, "w") as f2:
+        main = f1.read()
+        start = main.find(marker1) + len(marker1)
+        end = main.find(marker2)
+
+        main = main[start:end]
+        # time.sleep(1) # Testing if this needs to be here.
+        f2.write(main)
+
+
+def get_node_coords_dataframe():
+    """
+    Read the nodal coordinate data from a text file into a pandas df
+
+    Args:
+        None.
+
+    Returns:
+        node_df: The data frame containing the node numbers and coordinates.
+    """
+
+    df = pd.read_csv(
+        "coordinates.txt",
+        delim_whitespace=True,  # separator is whitespace
+        header=None,  # no header
+        names=["Node", "x", "y", "z"],
+    )  # set columns names
+
+    node_df = df.drop(0)  # the top entry is wrong and should be removed.
+
+    return node_df
+
+
+def find_closest_node(desired_location, node_df):
+    """
+    Find the closest node to the desired geometry location
+
+    We are dealing with a planar analysis, therefore we ignore the z values
+
+    Args:
+        desired_location: The target location of the geometry - tuple.
+        node_df: Data frame that contains all the node id's and locations.
+
+    Returns:
+        node_id: The id of the closest node.
+        min_distance: The distance of the closest node.
+    """
+
+    x = desired_location[0]
+    y = desired_location[1]
+
+    # large number to ensure a result is found
+    min_distance = 100
+
+    for _, row in node_df.iterrows():
+
+        # convert the string to the correct format then convert to float
+        x_hat = row["x"]
+        x_hat = float(x_hat[:-2] + "e" + x_hat[-2:])
+        y_hat = row["y"]
+        y_hat = float(y_hat[:-2] + "e" + y_hat[-2:])
+
+        # Calculate the distance from the desired location
+        distance = ((x - x_hat) ** 2 + (y - y_hat) ** 2) ** 0.5
+
+        # check if distance is the smallest encountered so far
+        if distance < min_distance:
+            min_distance = distance
+            node_id = row["Node"]
+
+    return (node_id, min_distance)
 
 
 def was_code_successfull(file_path, word, max_time=20):
@@ -19,7 +222,7 @@ def was_code_successfull(file_path, word, max_time=20):
             content = file.read()
             # check if string present in a file
             if word in content:
-                print("EXIT CODE - 3004")
+                print("\t\t\tEXIT CODE - 3004")
                 complete = True
             else:
                 # pause for a short while
@@ -28,29 +231,26 @@ def was_code_successfull(file_path, word, max_time=20):
     if complete == True:
         return True
     else:
-        print("Ran Out of Time")
+        print("Ran out of Time - was_code_successfull")
         return False
 
 
 def does_file_exist(file_name, file_extension, max_time=15):
     """
-    Check a file exits. Runs untill found or max time reached.
+    Check a file exits. Runs until found or max time reached.
 
     Args:
         file_name: The file name.
         file_extension: The extension of the file, e.g. sts, t16, etc.
-        max_time: The maximum ammount of time the model can run.
+        max_time: The maximum amount of time the model can run.
     """
 
     file_exists = False
     elapsed_time = 0
     start_time = time.time()
 
-    # print(f"Looking for - {file_name}.{file_extension}")
-
     while (file_exists == False) and (elapsed_time < max_time):
-        if os.path.isfile(f"{file_name}_job1.{file_extension}"):
-            # print(f"Found: {file_name}.{file_extension}")
+        if os.path.isfile(f"{file_name}.{file_extension}"):
             file_exists = True
         else:
             # pause for a short ammount of time
@@ -60,21 +260,30 @@ def does_file_exist(file_name, file_extension, max_time=15):
     return file_exists
 
 
-def setup_geometry_and_mesh(N5XY, h, w, N6XY, N7XY, N8XY):
+def setup_geometry_and_mesh(N5XY, N6XY, N7XY, N8XY):
     # set analysis to planar
     py_send("*set_model_analysis_dimension planar")
     # create the geometry
     py_send("*set_solid_type sheet_rect")
-    py_send(f"*add_solids 0 0 0 30 30 {N5XY[0]} {N5XY[1]} 0 {w} {h}")
+    # Add the main solid
+    py_send(f"*add_solids 0 0 0 90 30")
+    # Add the cutaway solids
+    py_send("*set_solid_type sheet_arb_poly")
+    # add cutaway 1
+    py_send("*add_solids")
+    for i in (0, 30, 60):
+        py_send(f"*add_solids")
+        py_send(f"{N5XY[0] + i} {N5XY[1]} 0")
+        py_send(f"{N6XY[0] + i} {N6XY[1]} 0")
+        py_send(f"{N7XY[0] + i} {N7XY[1]} 0")
+        py_send(f"{N8XY[0] + i} {N8XY[1]} 0 #")
+
+    # Subtract the three cutouts
     py_send("*solids_subtract 1 2 #")
-    # create the four corner nodes.
-    py_send("*add_nodes 0 0 0 30 0 0 30 30 0 0 30 0")
-    # create the four internal corner nodes (these will be optimised)
-    py_send(f"*add_nodes {N5XY[0]} {N5XY[1]} 0")
-    py_send(f"*add_nodes {N6XY[0]} {N6XY[1]} 0")
-    py_send(f"*add_nodes {N7XY[0]} {N7XY[1]} 0")
-    py_send(f"*add_nodes {N8XY[0]} {N8XY[1]} 0")
-    # Automesh
+    py_send("*solids_subtract 1 3 #")
+    py_send("*solids_subtract 1 4 #")
+    create_nodes(N5XY, N6XY, N7XY, N8XY)
+    # # Automesh
     py_send("@set($automesh_surface_desc,sheet)")
     py_send("@set($automesh_surface_family,quad)")
     py_send("*pt_set_target_element_size_method manual")
@@ -82,7 +291,43 @@ def setup_geometry_and_mesh(N5XY, h, w, N6XY, N7XY, N8XY):
     py_send("*pt_mesh_sheet linear quad")
     py_send("solid1 #")
     # remove any duplicate nodes
-    py_send("*sweep_nodes all_existing")
+    py_send("*sweep_nodes all_existing #")
+
+    return
+
+
+def create_nodes(N5XY, N6XY, N7XY, N8XY):
+    """
+    Create the required nodes for the application of boundary conditions.
+
+    Args:
+        N5XY: x-y coordinates for node 5.
+        N6XY: x-y coordinates for node 6.
+        N7XY: x-y coordinates for node 7.
+        N8XY: x-y coordinates for node 8.
+
+    Returns:
+        None
+    """
+
+    # create the four corner nodes.
+    py_send("*add_nodes 0 0 0 90 0 0 90 30 0 0 30 0")
+    # create the four internal corner nodes. Cutout 1
+    py_send(f"*add_nodes {N5XY[0]} {N5XY[1]} 0")
+
+    py_send(f"*add_nodes {N6XY[0]} {N6XY[1]} 0")
+    py_send(f"*add_nodes {N7XY[0]} {N7XY[1]} 0")
+    py_send(f"*add_nodes {N8XY[0]} {N8XY[1]} 0")
+    # create the four internal corner nodes. Cutout 2
+    py_send(f"*add_nodes {N5XY[0] + 30} {N5XY[1]} 0")
+    py_send(f"*add_nodes {N6XY[0] + 30} {N6XY[1]} 0")
+    py_send(f"*add_nodes {N7XY[0] + 30} {N7XY[1]} 0")
+    py_send(f"*add_nodes {N8XY[0] + 30} {N8XY[1]} 0")
+    # create the four internal corner nodes. Cutout 2
+    py_send(f"*add_nodes {N5XY[0] + 60} {N5XY[1]} 0")
+    py_send(f"*add_nodes {N6XY[0] + 60} {N6XY[1]} 0")
+    py_send(f"*add_nodes {N7XY[0] + 60} {N7XY[1]} 0")
+    py_send(f"*add_nodes {N8XY[0] + 60} {N8XY[1]} 0")
 
     return
 
@@ -106,7 +351,20 @@ def apply_loads(pressure_val):
     # Create the table
     py_send("*new_pre_defined_table linear_ramp_time")
     # egde pressure loads
-    internal_edge_pairs = [[8, 5], [5, 6], [6, 7], [7, 8]]
+    internal_edge_pairs = [
+        [8, 5],
+        [5, 6],
+        [6, 7],
+        [7, 8],
+        [12, 9],
+        [9, 10],
+        [10, 11],
+        [11, 12],
+        [16, 13],
+        [13, 14],
+        [14, 15],
+        [15, 16],
+    ]
     py_send("*select_clear_nodes")
     py_send("*select_clear_edges")
     for i in internal_edge_pairs:
@@ -211,12 +469,14 @@ def delete_all(fname):
     py_send("*remove_solids 1 #")
 
     # delete the results files
-    delete_file(file_name, ".log")
-    delete_file(file_name, ".dat")
-    delete_file(file_name, ".out")
-    delete_file(file_name, ".sts")
-    delete_file(file_name, ".t16")
-    delete_file(file_name, "_b1.x_t")
+    delete_file(file_name, "_job1.log")
+    delete_file(file_name, "_job1.dat")
+    delete_file(file_name, "_job1.out")
+    delete_file(file_name, "_job1.sts")
+    delete_file(file_name, "_job1.t16")
+    delete_file(file_name, "_job1_b1.x_t")
+    delete_file("node_location", ".dat")
+    delete_file("node_location", "_b1.x_t")
 
 
 def delete_file(file_name, file_extension):
@@ -231,10 +491,9 @@ def delete_file(file_name, file_extension):
         None
     """
 
-    file_path = file_name + "_job1" + file_extension
+    file_path = file_name + file_extension
     if os.path.isfile(file_path):
         os.remove(file_path)
-        # print("File has been deleted")
     else:
         print("File does not exist")
 
@@ -244,7 +503,7 @@ def delete_file(file_name, file_extension):
 def job_status_checks(file_name):
     """See if the job is completed and if successfully"""
     # does a status file exist
-    does_file_exist(file_name, "sts", 15)
+    does_file_exist(file_name + "_job1", "sts", 15)
     path = os.path.abspath(os.getcwd())
     file_path = path + f"\\{file_name}_job1.sts"
 
@@ -254,51 +513,67 @@ def job_status_checks(file_name):
     return success
 
 
-def get_x_y_node_displacements():
+def get_x_y_node_displacements(node_ids):
     """
     Get the x y node displacements of the nodes of interest.
 
-    Displacements are relative to staring positions.
+    NB! Displacements are relative to staring positions.
 
     Args:
-        None
+        node_ids: The node ids of interest. In the order,
+            (node17_id, node18_id, node19_id, node20_id).
 
     Returns:
-        N2X: Node 2 x displacement.
-        N2Y: Node 2 y displacement.
-        N3X: Node 3 x displacement.
-        N3Y: Node 3 y displacement.
+        n17xy: node 17 x-y coordinates passed as a tuple (x, y)
+        n18xy: node 17 x-y coordinates passed as a tuple (x, y)
+        n19xy: node 17 x-y coordinates passed as a tuple (x, y)
+        n20xy: node 17 x-y coordinates passed as a tuple (x, y)
     """
 
+    # Setup the post process environment
     py_send("*post_close")
     py_send("*post_open testing_one_one_job1.t16")
-    # py_send("*post_next")
     py_send("*post_skip_to_last")
-
-    # return 1
-    # py_send("*fill_view")
     py_send("*post_contour_lines")
+
+    # Tell mark we want displacement X
     py_send("*post_value Displacement X")
-    # Node 2
-    n_id = py_get_int("node_id(2)")
-    N2X = py_get_float(f"scalar_1({n_id})")
-    # Node 3
-    n_id = py_get_int("node_id(3)")
-    N3X = py_get_float(f"scalar_1({n_id})")
+
+    # Node 17
+    n_id = py_get_int(f"node_id({node_ids[0]})")
+    N17X = py_get_float(f"scalar_1({n_id})")
+    # Node 18
+    n_id = py_get_int(f"node_id({node_ids[1]})")
+    N18X = py_get_float(f"scalar_1({n_id})")
+    # Node 19
+    n_id = py_get_int(f"node_id({node_ids[2]})")
+    N19X = py_get_float(f"scalar_1({n_id})")
+    # Node 20
+    n_id = py_get_int(f"node_id({node_ids[3]})")
+    N20X = py_get_float(f"scalar_1({n_id})")
 
     # Tell marc we want displacement Y
     py_send("*post_value Displacement Y")
-    # Node 2
-    n_id = py_get_int("node_id(2)")
-    N2Y = py_get_float(f"scalar_1({n_id})")
-    # Node 3
-    n_id = py_get_int("node_id(3)")
-    N3Y = py_get_float(f"scalar_1({n_id})")
 
-    n2xy = (N2X, N2Y)
-    n3xy = (N3X, N3Y)
+    # Node 17
+    n_id = py_get_int(f"node_id({node_ids[0]})")
+    N17Y = py_get_float(f"scalar_1({n_id})")
+    # Node 18
+    n_id = py_get_int(f"node_id({node_ids[1]})")
+    N18Y = py_get_float(f"scalar_1({n_id})")
+    # Node 19
+    n_id = py_get_int(f"node_id({node_ids[2]})")
+    N19Y = py_get_float(f"scalar_1({n_id})")
+    # Node 20
+    n_id = py_get_int(f"node_id({node_ids[3]})")
+    N20Y = py_get_float(f"scalar_1({n_id})")
 
-    return (n2xy, n3xy)
+    n17xy = (N17X, N17Y)
+    n18xy = (N18X, N18Y)
+    n19xy = (N19X, N19Y)
+    n20xy = (N20X, N20Y)
+
+    return (n17xy, n18xy, n19xy, n20xy)
 
 
 def get_cutaway_dimensions(t1, t2, t3, t4):
@@ -347,21 +622,21 @@ def get_nodes_6_7_8(t1, t2, t3, t4):
     return (N6XY, N7XY, N8XY)
 
 
-def model_setup(file_name, N5XY, h, w, N6XY, N7XY, N8XY):
+def model_setup(file_name, N5XY, N6XY, N7XY, N8XY):
     """Setting up the model"""
     # Save the model
     py_send(f'*set_save_formatted off *save_as_model "{file_name}" yes')
-    setup_geometry_and_mesh(N5XY, h, w, N6XY, N7XY, N8XY)
+    setup_geometry_and_mesh(N5XY, N6XY, N7XY, N8XY)
     apply_boundary_conditions()
     add_material_properties()
     create_geometric_properites(thickness=2)
-    apply_loads(20)
+    apply_loads(30)
     setup_loadcase()
     create_job()
     return
 
 
-def mentat_main(N5XY, h, w, N6XY, N7XY, N8XY):
+def mentat_main(N5XY, N6XY, N7XY, N8XY):
     """
     Simulate a geometry and return the desired nodal displacements.
 
@@ -375,90 +650,193 @@ def mentat_main(N5XY, h, w, N6XY, N7XY, N8XY):
         N3Y: Node 3 y displacements.
     """
 
-    model_setup(file_name, N5XY, h, w, N6XY, N7XY, N8XY)
+    model_setup(file_name, N5XY, N6XY, N7XY, N8XY)
+    # Export at dat file to read node ids from
+    py_send("*write_marc 'node_location.dat' yes")
+    node_file = does_file_exist("node_location", "dat")
+    if node_file == True:
+        did_this_work = is_file_being_modified(file_name_and_exten="node_location.dat")
+    else:
+        print("Error in node file somewhere")
+    extract_nodes_from_dat()
+    node_df = get_node_coords_dataframe()
+    node_targets = ((30, 0, 0), (60, 0, 0), (60, 30, 0), (30, 30, 0))
+    node_ids = []
+    for i in node_targets:
+        (the_node_id, distance) = find_closest_node(i, node_df)
+        node_ids.append(the_node_id)
+        if distance > 0.01:
+            print(f"\t\t\tDistance:\t{distance}")
+
     run_the_model()
     success = job_status_checks(file_name)
     # Wait untill a .t16 results file has been made.
-    proceed = does_file_exist(file_name, "t16", 15)  # if time runs out -> false
+    proceed = does_file_exist(
+        file_name + "_job1", "t16", 15
+    )  # if time runs out -> false
     if success and proceed:
-        node_displacements = get_x_y_node_displacements()
+        node_displacements = get_x_y_node_displacements(node_ids)
         return node_displacements
     else:
         print("Problem encountered in code")
         return
 
 
-def convert_displacements_to_coordinates(n2xy_d, n3xy_d):
+def is_file_being_modified(file_name_and_exten, max_time=15):
+    """
+    Runs infinitely until a file is no longer being modified
+
+    Args:
+        file_name_and_extension: The full file name and extension.
+        max_time: The maximum time the function can run before termination.
+
+    Returns:
+        Success: True if file is no longer being modified.
+            False if time runs out.
+    """
+    start_time = time.time()
+    mod_time = time.ctime(os.path.getmtime(file_name_and_exten))
+    last_mod_time = mod_time
+
+    run_time = 0
+    success = False
+
+    while (success == False) and (run_time < max_time):
+        print(f"\t\t\tMod time:\t{mod_time}")
+        time.sleep(0.1)
+        mod_time = time.ctime(os.path.getmtime(file_name_and_exten))
+        if mod_time == last_mod_time:
+            success = True
+        else:
+            last_mod_time = mod_time
+
+    return success
+
+
+def convert_displacements_to_coordinates(node_disps):
     """
     Convert nodal displacements into nodal coodinates.
 
-    This function assumes an element of shape 30x30mm.
+    This function assumes an element of shape 30x30mm and that the element
+        of interest is the second element stacked to the right.
 
     Args:
-        n2xy: Original node 2 coordinates.
-        n3xy: Original node 3 coordinates.
-        n2xy_d: Node 2 x-y, displacements.
-        n3xy_d: Node 3 x-y, displacements.
+        node_disps: Nodes 17-20 nodal displacements. Each as a tuple
 
     Returns:
-        n2xy: New node 2 coordinates.
-        n3xy: New node 3 coordinates.
+        n17xy: New node 17 coordinates.
+        n18xy: New node 18 coordinates.
+        n19xy: New node 19 coordinates.
+        n20xy: New node 20 coordinates.
     """
-    # Node 2
-    n2x = 30 + n2xy_d[0]
-    n2y = n2xy_d[1]
+    n17xy_d = node_disps[0]
+    n18xy_d = node_disps[1]
+    n19xy_d = node_disps[2]
+    n20xy_d = node_disps[3]
 
-    # Node 3
-    n3x = 30 + n3xy_d[0]
-    n3y = 30 + n3xy_d[1]
+    # Node 17
+    n17x = 30 + n17xy_d[0]
+    n17y = n17xy_d[1]
 
-    n2xy = (n2x, n2y)
-    n3xy = (n3x, n3y)
+    # Node 18
+    n18x = 60 + n18xy_d[0]
+    n18y = n18xy_d[1]
 
-    return (n2xy, n3xy)
+    # Node 19
+    n19x = 60 + n19xy_d[0]
+    n19y = 30 + n19xy_d[1]
+
+    # Node 20
+    n20x = 30 + n20xy_d[0]
+    n20y = 30 + n20xy_d[1]
+
+    n17xy = (n17x, n17y)
+    n18xy = (n18x, n18y)
+    n19xy = (n19x, n19y)
+    n20xy = (n20x, n20y)
+
+    return (n17xy, n18xy, n19xy, n20xy)
 
 
-def fitness_function(t1234_ls, return_node_locations=False):
+def fitness_function(node_locations, return_node_locations=False):
     """
     The function that will be optimised
 
     Args:
-        t1: Thickness 1
-        t2: Thickness 2
-        t3: Thickness 3
-        t4: Thickness 4
+        node_locations: List containing all the node locations for nodes 5-8.
+        return_node_locations: True if final node locations should be returned.
 
     Returns
         fitness: Sum of the euclidian distances from target nodes.
     """
 
-    t1 = t1234_ls[0]
-    t2 = t1234_ls[1]
-    t3 = t1234_ls[2]
-    t4 = t1234_ls[3]
+    N5XY = (node_locations[0], node_locations[1])
+    N6XY = (node_locations[2], node_locations[3])
+    N7XY = (node_locations[4], node_locations[5])
+    N8XY = (node_locations[6], node_locations[7])
 
-    N5XY, h, w = get_cutaway_dimensions(t1, t2, t3, t4)
-    N6XY, N7XY, N8XY = get_nodes_6_7_8(t1, t2, t3, t4)
-    node_disps = mentat_main(N5XY, h, w, N6XY, N7XY, N8XY)
-    n2xy, n3xy = convert_displacements_to_coordinates(node_disps[0], node_disps[1])
-    optimum = (n2xy, n3xy)
+    node_disps = mentat_main(N5XY, N6XY, N7XY, N8XY)
+    final_pos = convert_displacements_to_coordinates(node_disps)
 
-    n2_target = (40, 0)
-    n3_target = (40, 30)
+    # convert the nodal displacements into the correct format
+    x_lst = []
+    y_lst = []
+    for i in final_pos:
+        x_lst.append(i[0])
+        y_lst.append(i[1])
 
-    euclid_2 = ((n2_target[0] - n2xy[0]) ** 2 + (n2_target[1] - n2xy[1]) ** 2) ** 0.5
-    euclid_3 = ((n3_target[0] - n3xy[0]) ** 2 + (n3_target[1] - n3xy[1]) ** 2) ** 0.5
+    coordinates = x_lst + y_lst
 
-    fitness = euclid_2 + euclid_3
+    (theta, _) = get_angl_midpts(coordinates, 41)
+
+    np_coords = np.array(coordinates)
+    coordinates = rotate_then_translate(
+        np_coords, (theta), np.array([[-1 * x_lst[0]], [-1 * y_lst[0]]])
+    )
+
+    plt.show()
+
+    fitness = determine_fitness_score(coordinates)
 
     delete_all(file_name)
 
     print(f"Fitness: {fitness}")
 
     if return_node_locations == True:
-        return optimum
+        print(f"The final positions: {final_pos}")
+        return final_pos
     else:
         return fitness
+
+
+def determine_fitness_score(node_points):
+    """
+    Determine the fitness of a solution.
+
+    The fitness is the sum of the euclidian distances of all points from target
+
+    Args:
+        node_points: The node point positions of nodes 9-12 in the form,
+            [x9, x10, x11, x12, y9, y10, y11, y12]
+
+    Returns:
+        score: The fitness score of the node point configuration.
+    """
+
+    # Target points
+    t_1 = (0, 0)
+    t_2 = (4.08612135e01, 6.56753218e-01)
+    t_3 = (3.81125194e01, 3.03306614e01)
+    t_4 = (0, 2.98009421e01)
+
+    euclid_1 = ((t_1[0] - node_points[0]) ** 2 + (t_1[1] - node_points[4]) ** 2) ** 0.5
+    euclid_2 = ((t_2[0] - node_points[1]) ** 2 + (t_2[1] - node_points[5]) ** 2) ** 0.5
+    euclid_3 = ((t_3[0] - node_points[2]) ** 2 + (t_3[1] - node_points[6]) ** 2) ** 0.5
+    euclid_4 = ((t_4[0] - node_points[3]) ** 2 + (t_4[1] - node_points[7]) ** 2) ** 0.5
+
+    fitness = euclid_1 + euclid_2 + euclid_3 + euclid_4
+
+    return fitness
 
 
 def constraint_1(t1234_ls):
@@ -539,13 +917,14 @@ def constraint_6(t1234_ls):
 
 if __name__ == "__main__":
 
-    # create a global optimum variable for easy retrival
+    # Variable that controls if an optimisation is actually run.
+    build_only = False
 
     # some general setup
     global file_name
     file_name = "testing_one_one"
     py_connect("", 40007)
-    py_send('*change_directory "C:\github\MarcMentat_Python\Thesis_Code"')
+    py_send('*change_directory "github\MarcMentat_Python\Thesis_Code"')
 
     # Optimiser code
 
@@ -558,16 +937,32 @@ if __name__ == "__main__":
     con6 = {"type": "ineq", "fun": constraint_6}
     cons = [con1, con2, con3, con4, con5, con6]
 
-    # Initial guess
-    x0 = [7.0, 7.0, 7.0, 7.0]
+    # Bounds
+    bd_1 = (2, 14)
+    bd_2 = (2, 14)
+    bd_3 = (16, 28)
+    bd_4 = (2, 14)
+    bd_5 = (16, 28)
+    bd_6 = (16, 28)
+    bd_7 = (2, 14)
+    bd_8 = (16, 28)
 
-    # Run the optimiser
-    solution = optimize.minimize(
-        fitness_function, x0, method="COBYLA", constraints=cons
-    )
-    print(f"The best solution = {solution}")
+    bnds = (bd_1, bd_2, bd_3, bd_4, bd_5, bd_6, bd_7, bd_8)
 
-    answer = fitness_function(solution.x, True)
-    print(f"Final Nodal Parameters:\n\n\t\t{answer}")
+    # Initial guess. These are the node locations in oder as:
+    # [N9X, N9Y, N10X, N10Y, N11X, N11Y, N12X, N12Y]
+    x0 = [2, 2, 25, 8, 15, 15, 5, 25]
+
+    if build_only == True:
+        fitness_function(x0, True)
+    else:
+        # Run the optimiser
+        solution = optimize.minimize(
+            fitness_function, x0, method="Nelder-Mead", bounds=bnds
+        )  # method="COBYLA",
+        print(f"The best solution = {solution}")
+
+        answer = fitness_function(solution.x, True)
+        print(f"Final Nodal Parameters:\n\n\t\t{answer}")
 
     py_disconnect()
