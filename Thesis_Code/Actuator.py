@@ -124,8 +124,9 @@ def add_material_properties():
     py_send("*new_mater standard *mater_option general:state:solid")
     py_send("*mater_option general:skip_structural:off")
     py_send("*mater_option structural:type:mooney")
-    py_send("*mater_param structural:mooney_c10 80")
-    py_send("*mater_param structural:mooney_c01 20")
+    py_send("*mater_param structural:mooney_c10 0.26056762")  # assuming MPa
+    py_send("*mater_param structural:mooney_c01 0.09754981")  # assuming MPa
+    py_send("*mater_param structural:mooney_c20 0.05750069")  # assuming MPa
     py_send("*add_mater_elements all_existing")
 
 
@@ -442,8 +443,8 @@ def fitness_function(t1234_ls, return_node_locations=False):
     n2xy, n3xy = convert_displacements_to_coordinates(node_disps[0], node_disps[1])
     optimum = (n2xy, n3xy)
 
-    n2_target = (40, -10)
-    n3_target = (40, 40)
+    n2_target = (40, 0)
+    n3_target = (40, 30)
 
     euclid_2 = ((n2_target[0] - n2xy[0]) ** 2 + (n2_target[1] - n2xy[1]) ** 2) ** 0.5
     euclid_3 = ((n3_target[0] - n3xy[0]) ** 2 + (n3_target[1] - n3xy[1]) ** 2) ** 0.5
@@ -558,7 +559,7 @@ if __name__ == "__main__":
     cons = [con1, con2, con3, con4, con5, con6]
 
     # Initial guess
-    x0 = [2.0, 7.53576963, 2.0, 4.37180637]
+    x0 = [7.0, 7.0, 7.0, 7.0]
 
     # Run the optimiser
     solution = optimize.minimize(
