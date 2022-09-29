@@ -231,18 +231,18 @@ def was_code_successfull(file_path, word, max_time=20):
     if complete == True:
         return True
     else:
-        print("Ran Out of Time")
+        print("Ran out of Time - was_code_successfull")
         return False
 
 
 def does_file_exist(file_name, file_extension, max_time=15):
     """
-    Check a file exits. Runs untill found or max time reached.
+    Check a file exits. Runs until found or max time reached.
 
     Args:
         file_name: The file name.
         file_extension: The extension of the file, e.g. sts, t16, etc.
-        max_time: The maximum ammount of time the model can run.
+        max_time: The maximum amount of time the model can run.
     """
 
     file_exists = False
@@ -664,7 +664,7 @@ def mentat_main(N5XY, N6XY, N7XY, N8XY):
     for i in node_targets:
         (the_node_id, distance) = find_closest_node(i, node_df)
         node_ids.append(the_node_id)
-        if distance > 0.001:
+        if distance > 0.01:
             print(f"\t\t\tDistance:\t{distance}")
 
     run_the_model()
@@ -937,27 +937,27 @@ if __name__ == "__main__":
     cons = [con1, con2, con3, con4, con5, con6]
 
     # Bounds
-    bd_1 = (2, 15)
-    bd_2 = (2, 15)
-    bd_3 = (15, 30)
-    bd_4 = (2, 15)
-    bd_5 = (15, 30)
-    bd_6 = (15, 30)
-    bd_7 = (2, 15)
-    bd_8 = (15, 30)
+    bd_1 = (2, 14)
+    bd_2 = (2, 14)
+    bd_3 = (16, 28)
+    bd_4 = (2, 14)
+    bd_5 = (16, 28)
+    bd_6 = (16, 28)
+    bd_7 = (2, 14)
+    bd_8 = (16, 28)
 
     bnds = (bd_1, bd_2, bd_3, bd_4, bd_5, bd_6, bd_7, bd_8)
 
     # Initial guess. These are the node locations in oder as:
     # [N9X, N9Y, N10X, N10Y, N11X, N11Y, N12X, N12Y]
-    x0 = [5, 8, 25, 8, 25, 25, 5, 25]
+    x0 = [2, 2, 25, 8, 15, 15, 5, 25]
 
     if build_only == True:
         fitness_function(x0, True)
     else:
         # Run the optimiser
         solution = optimize.minimize(
-            fitness_function, x0, method="Powell", bounds=bnds
+            fitness_function, x0, method="Nelder-Mead", bounds=bnds
         )  # method="COBYLA",
         print(f"The best solution = {solution}")
 
