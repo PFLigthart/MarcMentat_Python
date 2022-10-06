@@ -1,6 +1,8 @@
 """Script to create a singly unit of the soft actuator that will be optimised"""
 
 import os
+import subprocess
+import threading
 import time
 
 import matplotlib.pyplot as plt
@@ -260,18 +262,18 @@ def does_file_exist(file_name, file_extension, max_time=15):
     return file_exists
 
 
-def setup_geometry_and_mesh(N5XY, N6XY, N7XY, N8XY):
+def setup_geometry_and_mesh(N5XY, N6XY, N7XY, N8XY, elements):
     # set analysis to planar
     py_send("*set_model_analysis_dimension planar")
     # create the geometry
     py_send("*set_solid_type sheet_rect")
     # Add the main solid
-    py_send(f"*add_solids 0 0 0 90 30")
+    py_send(f"*add_solids 0 0 0 {30*elements} 30")
     # Add the cutaway solids
     py_send("*set_solid_type sheet_arb_poly")
     # add cutaway 1
     py_send("*add_solids")
-    for i in (0, 30, 60):
+    for i in range(0, 30 * elements, 30):
         py_send(f"*add_solids")
         py_send(f"{N5XY[0] + i} {N5XY[1]} 0")
         py_send(f"{N6XY[0] + i} {N6XY[1]} 0")
@@ -279,10 +281,10 @@ def setup_geometry_and_mesh(N5XY, N6XY, N7XY, N8XY):
         py_send(f"{N8XY[0] + i} {N8XY[1]} 0 #")
 
     # Subtract the three cutouts
-    py_send("*solids_subtract 1 2 #")
-    py_send("*solids_subtract 1 3 #")
-    py_send("*solids_subtract 1 4 #")
-    create_nodes(N5XY, N6XY, N7XY, N8XY)
+    for i in range(elements):
+        py_send(f"*solids_subtract 1 {i + 2} #")
+
+    create_nodes(N5XY, N6XY, N7XY, N8XY, elements)
     # # Automesh
     py_send("@set($automesh_surface_desc,sheet)")
     py_send("@set($automesh_surface_family,quad)")
@@ -296,7 +298,7 @@ def setup_geometry_and_mesh(N5XY, N6XY, N7XY, N8XY):
     return
 
 
-def create_nodes(N5XY, N6XY, N7XY, N8XY):
+def create_nodes(N5XY, N6XY, N7XY, N8XY, elements):
     """
     Create the required nodes for the application of boundary conditions.
 
@@ -311,23 +313,13 @@ def create_nodes(N5XY, N6XY, N7XY, N8XY):
     """
 
     # create the four corner nodes.
-    py_send("*add_nodes 0 0 0 90 0 0 90 30 0 0 30 0")
-    # create the four internal corner nodes. Cutout 1
-    py_send(f"*add_nodes {N5XY[0]} {N5XY[1]} 0")
+    py_send(f"*add_nodes 0 0 0 {30*elements} 0 0 {30*elements} 30 0 0 30 0")
 
-    py_send(f"*add_nodes {N6XY[0]} {N6XY[1]} 0")
-    py_send(f"*add_nodes {N7XY[0]} {N7XY[1]} 0")
-    py_send(f"*add_nodes {N8XY[0]} {N8XY[1]} 0")
-    # create the four internal corner nodes. Cutout 2
-    py_send(f"*add_nodes {N5XY[0] + 30} {N5XY[1]} 0")
-    py_send(f"*add_nodes {N6XY[0] + 30} {N6XY[1]} 0")
-    py_send(f"*add_nodes {N7XY[0] + 30} {N7XY[1]} 0")
-    py_send(f"*add_nodes {N8XY[0] + 30} {N8XY[1]} 0")
-    # create the four internal corner nodes. Cutout 2
-    py_send(f"*add_nodes {N5XY[0] + 60} {N5XY[1]} 0")
-    py_send(f"*add_nodes {N6XY[0] + 60} {N6XY[1]} 0")
-    py_send(f"*add_nodes {N7XY[0] + 60} {N7XY[1]} 0")
-    py_send(f"*add_nodes {N8XY[0] + 60} {N8XY[1]} 0")
+    for i in range(0, 30 * elements, 30):
+        py_send(f"*add_nodes {N5XY[0] + i} {N5XY[1]} 0")
+        py_send(f"*add_nodes {N6XY[0] + i} {N6XY[1]} 0")
+        py_send(f"*add_nodes {N7XY[0] + i} {N7XY[1]} 0")
+        py_send(f"*add_nodes {N8XY[0] + i} {N8XY[1]} 0 #")
 
     return
 
@@ -346,29 +338,32 @@ def apply_boundary_conditions():
     py_send("all_selected #")
 
 
-def apply_loads(pressure_val):
+def apply_loads(pressure_val, elements):
 
     # Create the table
     py_send("*new_pre_defined_table linear_ramp_time")
+
+    internal_edge_elem_1 = [[8, 5], [5, 6], [6, 7], [7, 8]]
     # egde pressure loads
-    internal_edge_pairs = [
-        [8, 5],
-        [5, 6],
-        [6, 7],
-        [7, 8],
-        [12, 9],
-        [9, 10],
-        [10, 11],
-        [11, 12],
-        [16, 13],
-        [13, 14],
-        [14, 15],
-        [15, 16],
-    ]
+    # internal_edge_pairs = [
+    #     [8, 5],
+    #     [5, 6],
+    #     [6, 7],
+    #     [7, 8],
+    #     [12, 9],
+    #     [9, 10],
+    #     [10, 11],
+    #     [11, 12],
+    #     [16, 13],
+    #     [13, 14],
+    #     [14, 15],
+    #     [15, 16],
+    # ]
     py_send("*select_clear_nodes")
     py_send("*select_clear_edges")
-    for i in internal_edge_pairs:
-        py_send(f"*select_edges {i[0]} {i[1]} #")
+    for i in range(elements):
+        for j in internal_edge_elem_1:
+            py_send(f"*select_edges {j[0] + (i*4)} {j[1] + (i*4)} #")
 
     py_send("*new_apply *apply_type edge_load *apply_option edge_load_mode:area")
     py_send("*apply_dof p *apply_dof_value p")
@@ -551,6 +546,9 @@ def get_x_y_node_displacements(node_ids):
     # Node 20
     n_id = py_get_int(f"node_id({node_ids[3]})")
     N20X = py_get_float(f"scalar_1({n_id})")
+    # Tip location
+    n_id = py_get_int(f"node_id({node_ids[4]})")
+    TIPX = py_get_float(f"scalar_1({n_id})")
 
     # Tell marc we want displacement Y
     py_send("*post_value Displacement Y")
@@ -567,13 +565,17 @@ def get_x_y_node_displacements(node_ids):
     # Node 20
     n_id = py_get_int(f"node_id({node_ids[3]})")
     N20Y = py_get_float(f"scalar_1({n_id})")
+    # Tip location
+    n_id = py_get_int(f"node_id({node_ids[4]})")
+    TIPY = py_get_float(f"scalar_1({n_id})")
 
     n17xy = (N17X, N17Y)
     n18xy = (N18X, N18Y)
     n19xy = (N19X, N19Y)
     n20xy = (N20X, N20Y)
+    tipxy = (TIPX, TIPY)
 
-    return (n17xy, n18xy, n19xy, n20xy)
+    return (n17xy, n18xy, n19xy, n20xy, tipxy)
 
 
 def get_cutaway_dimensions(t1, t2, t3, t4):
@@ -622,21 +624,21 @@ def get_nodes_6_7_8(t1, t2, t3, t4):
     return (N6XY, N7XY, N8XY)
 
 
-def model_setup(file_name, N5XY, N6XY, N7XY, N8XY):
+def model_setup(file_name, N5XY, N6XY, N7XY, N8XY, elements):
     """Setting up the model"""
     # Save the model
     py_send(f'*set_save_formatted off *save_as_model "{file_name}" yes')
-    setup_geometry_and_mesh(N5XY, N6XY, N7XY, N8XY)
+    setup_geometry_and_mesh(N5XY, N6XY, N7XY, N8XY, elements)
     apply_boundary_conditions()
     add_material_properties()
     create_geometric_properites(thickness=2)
-    apply_loads(30)
+    apply_loads(0.6, elements)
     setup_loadcase()
     create_job()
     return
 
 
-def mentat_main(N5XY, N6XY, N7XY, N8XY):
+def mentat_main(N5XY, N6XY, N7XY, N8XY, elements):
     """
     Simulate a geometry and return the desired nodal displacements.
 
@@ -650,7 +652,7 @@ def mentat_main(N5XY, N6XY, N7XY, N8XY):
         N3Y: Node 3 y displacements.
     """
 
-    model_setup(file_name, N5XY, N6XY, N7XY, N8XY)
+    model_setup(file_name, N5XY, N6XY, N7XY, N8XY, elements)
     # Export at dat file to read node ids from
     py_send("*write_marc 'node_location.dat' yes")
     node_file = does_file_exist("node_location", "dat")
@@ -660,7 +662,13 @@ def mentat_main(N5XY, N6XY, N7XY, N8XY):
         print("Error in node file somewhere")
     extract_nodes_from_dat()
     node_df = get_node_coords_dataframe()
-    node_targets = ((30, 0, 0), (60, 0, 0), (60, 30, 0), (30, 30, 0))
+    node_targets = (
+        (30, 0, 0),
+        (60, 0, 0),
+        (60, 30, 0),
+        (30, 30, 0),
+        (elements * 30, 15, 0),
+    )
     node_ids = []
     for i in node_targets:
         (the_node_id, distance) = find_closest_node(i, node_df)
@@ -713,7 +721,7 @@ def is_file_being_modified(file_name_and_exten, max_time=15):
     return success
 
 
-def convert_displacements_to_coordinates(node_disps):
+def convert_displacements_to_coordinates(node_disps, elements):
     """
     Convert nodal displacements into nodal coodinates.
 
@@ -733,6 +741,7 @@ def convert_displacements_to_coordinates(node_disps):
     n18xy_d = node_disps[1]
     n19xy_d = node_disps[2]
     n20xy_d = node_disps[3]
+    tipxy_d = node_disps[4]
 
     # Node 17
     n17x = 30 + n17xy_d[0]
@@ -750,15 +759,20 @@ def convert_displacements_to_coordinates(node_disps):
     n20x = 30 + n20xy_d[0]
     n20y = 30 + n20xy_d[1]
 
+    # Tip location
+    tipx = (elements * 30) + tipxy_d[0]
+    tipy = 15 + tipxy_d[0]
+
     n17xy = (n17x, n17y)
     n18xy = (n18x, n18y)
     n19xy = (n19x, n19y)
     n20xy = (n20x, n20y)
+    tipxy = (tipx, tipy)
 
-    return (n17xy, n18xy, n19xy, n20xy)
+    return (n17xy, n18xy, n19xy, n20xy, tipxy)
 
 
-def fitness_function(node_locations, return_node_locations=False):
+def fitness_function(node_locations, elements, return_node_locations=False):
     """
     The function that will be optimised
 
@@ -775,15 +789,15 @@ def fitness_function(node_locations, return_node_locations=False):
     N7XY = (node_locations[4], node_locations[5])
     N8XY = (node_locations[6], node_locations[7])
 
-    node_disps = mentat_main(N5XY, N6XY, N7XY, N8XY)
-    final_pos = convert_displacements_to_coordinates(node_disps)
+    node_disps = mentat_main(N5XY, N6XY, N7XY, N8XY, elements)
+    final_pos = convert_displacements_to_coordinates(node_disps, elements)
 
     # convert the nodal displacements into the correct format
     x_lst = []
     y_lst = []
-    for i in final_pos:
-        x_lst.append(i[0])
-        y_lst.append(i[1])
+    for i in range(len(final_pos) - 1):  # -1 as we do not include tip location
+        x_lst.append(final_pos[i][0])
+        y_lst.append(final_pos[i][1])
 
     coordinates = x_lst + y_lst
 
@@ -798,12 +812,14 @@ def fitness_function(node_locations, return_node_locations=False):
 
     fitness = determine_fitness_score(coordinates)
 
-    delete_all(file_name)
+    if return_node_locations == False:
+        delete_all(file_name)
 
     print(f"Fitness: {fitness}")
 
     if return_node_locations == True:
         print(f"The final positions: {final_pos}")
+        print(f"Tip Location of {elements} elements: {final_pos[-1]}")
         return final_pos
     else:
         return fitness
@@ -917,14 +933,27 @@ def constraint_6(t1234_ls):
 
 if __name__ == "__main__":
 
+    start_time = time.time()
+    print(f"Opening Marc {start_time}")
+
+    # open mentat in the background.
+    # open_mentat = lambda: os.system("mentat initiate_separate_process.proc -bg")
+    # backgroundFunction = threading.Thread(target=open_mentat, args=(), kwargs={})
+    # backgroundFunction.start()
+    # end_time = time.time()
+    # print(f"Marc Opened {end_time - start_time}")
+
+    # # some time to allow mentat to open.
+    # time.sleep(10)
+
     # Variable that controls if an optimisation is actually run.
-    build_only = False
+    build_only = True
 
     # some general setup
     global file_name
     file_name = "testing_one_one"
     py_connect("", 40007)
-    py_send('*change_directory "github\MarcMentat_Python\Thesis_Code"')
+    py_send('*change_directory "C:\github\MarcMentat_Python\Thesis_Code"')
 
     # Optimiser code
 
@@ -951,18 +980,18 @@ if __name__ == "__main__":
 
     # Initial guess. These are the node locations in oder as:
     # [N9X, N9Y, N10X, N10Y, N11X, N11Y, N12X, N12Y]
-    x0 = [2, 2, 25, 8, 15, 15, 5, 25]
+    x0 = [6.076, 2.08555, 16.38696, 12.48386, 16.003357, 16.27933, 4.93488, 25.81012]
 
     if build_only == True:
-        fitness_function(x0, True)
+        fitness_function(x0, elements=3, return_node_locations=True)
     else:
         # Run the optimiser
-        solution = optimize.minimize(
-            fitness_function, x0, method="Nelder-Mead", bounds=bnds
-        )  # method="COBYLA",
+        solution = optimize.minimize(fitness_function, x0, method="SLSQP", bounds=bnds)
         print(f"The best solution = {solution}")
 
         answer = fitness_function(solution.x, True)
         print(f"Final Nodal Parameters:\n\n\t\t{answer}")
 
+    end_time = time.time()
+    print(f"Total run time {end_time - start_time}")
     py_disconnect()
