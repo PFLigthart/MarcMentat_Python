@@ -2,6 +2,9 @@
 Code to run finite element analysis in [MarcMentat](https://www.mscsoftware.com/product/marc) using python scripts. This allows for an optimisation loop to be setup with a finite element analysis within the loop.
 
 ## Contents
+
+[MarcMentat Courses]()
+
 [How to install Marc](https://github.com/PFLigthart/MarcMentat_Python/tree/Updates_1#how-to-install-marc-for-students-at-stellenbosch-university)
 
 [Virtual Environment](https://github.com/PFLigthart/MarcMentat_Python#how-to-setup-the-conda-virtual-environment-and-add-the-required-libraries)
@@ -20,6 +23,18 @@ Code to run finite element analysis in [MarcMentat](https://www.mscsoftware.com/
 [Example](https://github.com/PFLigthart/Example-from-thesis)
 
 * My personal files used for my masters thesis are included and can be used as an example. A short discription of what my code is designed for is also provided.
+
+## MarcMentat Courses
+
+The University has access to fantastic courses from MSC. These courses, specifically MAR101 and MAR102, should be almost everything you should need to be successfull using Marcmentat.
+* How to access these courses.
+  1. Log on to the ftp server.
+  2. Download the installation files, they are in the folder MSCLearningCenter.
+  3. Run the installation.
+* You then need to create an account to access the learning center.
+  1. If you open the MSC Learning Center there will be an option to sign in or to create an account. 
+  2. When selecting the option to create an account, a dialog will pop up in which you can create an acount.
+* You should now be set to take any of the MSC courses.
 
 ## How to install marc (For students at Stellenbosch University)
 1. Obtain the software from the ftp server. You have to be connected to the network to access the server. If you are not on campus you will need to use the vpn. (Ask your supervisor or check your research group wiki for the address and passcode.)
