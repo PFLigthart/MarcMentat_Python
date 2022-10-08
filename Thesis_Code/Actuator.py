@@ -212,7 +212,7 @@ def find_closest_node(desired_location, node_df):
     return (node_id, min_distance)
 
 
-def was_code_successfull(file_path, word, max_time=20):
+def was_code_successfull(file_path, word, max_time=150):
     """Search status file to see if code ran successfully"""
     complete = False
     time_elapsed = 0
@@ -237,7 +237,7 @@ def was_code_successfull(file_path, word, max_time=20):
         return False
 
 
-def does_file_exist(file_name, file_extension, max_time=15):
+def does_file_exist(file_name, file_extension, max_time=150):
     """
     Check a file exits. Runs until found or max time reached.
 
@@ -624,7 +624,7 @@ def get_nodes_6_7_8(t1, t2, t3, t4):
     return (N6XY, N7XY, N8XY)
 
 
-def model_setup(file_name, N5XY, N6XY, N7XY, N8XY, elements):
+def model_setup(file_name, N5XY, N6XY, N7XY, N8XY, elements, pressure):
     """Setting up the model"""
     # Save the model
     py_send(f'*set_save_formatted off *save_as_model "{file_name}" yes')
@@ -632,13 +632,13 @@ def model_setup(file_name, N5XY, N6XY, N7XY, N8XY, elements):
     apply_boundary_conditions()
     add_material_properties()
     create_geometric_properites(thickness=2)
-    apply_loads(0.6, elements)
+    apply_loads(pressure, elements)
     setup_loadcase()
     create_job()
     return
 
 
-def mentat_main(N5XY, N6XY, N7XY, N8XY, elements):
+def mentat_main(N5XY, N6XY, N7XY, N8XY, elements, pressure):
     """
     Simulate a geometry and return the desired nodal displacements.
 
@@ -652,7 +652,7 @@ def mentat_main(N5XY, N6XY, N7XY, N8XY, elements):
         N3Y: Node 3 y displacements.
     """
 
-    model_setup(file_name, N5XY, N6XY, N7XY, N8XY, elements)
+    model_setup(file_name, N5XY, N6XY, N7XY, N8XY, elements, pressure)
     # Export at dat file to read node ids from
     py_send("*write_marc 'node_location.dat' yes")
     node_file = does_file_exist("node_location", "dat")
@@ -690,7 +690,7 @@ def mentat_main(N5XY, N6XY, N7XY, N8XY, elements):
         return
 
 
-def is_file_being_modified(file_name_and_exten, max_time=15):
+def is_file_being_modified(file_name_and_exten, max_time=50):
     """
     Runs infinitely until a file is no longer being modified
 
@@ -772,12 +772,16 @@ def convert_displacements_to_coordinates(node_disps, elements):
     return (n17xy, n18xy, n19xy, n20xy, tipxy)
 
 
-def fitness_function(node_locations, elements, return_node_locations=False):
+def fitness_function(
+    node_locations, elements=3, pressure=15, return_node_locations=False
+):
     """
     The function that will be optimised
 
     Args:
         node_locations: List containing all the node locations for nodes 5-8.
+        elements: The number of actuator repeted unit elements.
+        pressure: The applied pressure value in kPa
         return_node_locations: True if final node locations should be returned.
 
     Returns
@@ -789,7 +793,7 @@ def fitness_function(node_locations, elements, return_node_locations=False):
     N7XY = (node_locations[4], node_locations[5])
     N8XY = (node_locations[6], node_locations[7])
 
-    node_disps = mentat_main(N5XY, N6XY, N7XY, N8XY, elements)
+    node_disps = mentat_main(N5XY, N6XY, N7XY, N8XY, elements, pressure)
     final_pos = convert_displacements_to_coordinates(node_disps, elements)
 
     # convert the nodal displacements into the correct format
@@ -967,26 +971,26 @@ if __name__ == "__main__":
     cons = [con1, con2, con3, con4, con5, con6]
 
     # Bounds
-    bd_1 = (2, 14)
-    bd_2 = (2, 14)
-    bd_3 = (16, 28)
-    bd_4 = (2, 14)
-    bd_5 = (16, 28)
-    bd_6 = (16, 28)
-    bd_7 = (2, 14)
-    bd_8 = (16, 28)
+    bd_1 = (2, 15)
+    bd_2 = (2, 15)
+    bd_3 = (15, 28)
+    bd_4 = (2, 15)
+    bd_5 = (15, 28)
+    bd_6 = (15, 28)
+    bd_7 = (2, 15)
+    bd_8 = (15, 28)
 
     bnds = (bd_1, bd_2, bd_3, bd_4, bd_5, bd_6, bd_7, bd_8)
 
     # Initial guess. These are the node locations in oder as:
     # [N9X, N9Y, N10X, N10Y, N11X, N11Y, N12X, N12Y]
-    x0 = [6.076, 2.08555, 16.38696, 12.48386, 16.003357, 16.27933, 4.93488, 25.81012]
+    x0 = [2, 15, 28, 15, 16, 28, 14, 28]
 
     if build_only == True:
-        fitness_function(x0, elements=3, return_node_locations=True)
+        fitness_function(x0, elements=12, pressure=15, return_node_locations=True)
     else:
         # Run the optimiser
-        solution = optimize.minimize(fitness_function, x0, method="SLSQP", bounds=bnds)
+        solution = optimize.minimize(fitness_function, x0, method="Powell", bounds=bnds)
         print(f"The best solution = {solution}")
 
         answer = fitness_function(solution.x, True)
