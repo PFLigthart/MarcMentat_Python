@@ -1,8 +1,0 @@
-| Created by Marc Mentat 2021.4 (64bit)
-*prog_option compatibility:prog_version:ment2021.4
-*prog_analysis_class structural
-*prog_use_current_job on
-*set_default_length_unit millimeter
-*set_model_length_unit millimeter
-|
-*exec_procedure .\initiate_separate_process.proc
